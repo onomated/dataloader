@@ -643,6 +643,7 @@ if Code.ensure_loaded?(Ecto) do
 
         coerced_inputs =
           if type = queryable.__schema__(:type, col) do
+            IO.inspect(entries, label: "**** ENTRIES *****")
             IO.inspect(key, label: "**** KEY *****")
             IO.inspect(type, label: "**** TYPE *****")
             IO.inspect(inputs, label: "**** INPUTS *****")
