@@ -346,6 +346,7 @@ if Code.ensure_loaded?(Ecto) do
         _ ->
           query
           |> where([q], field(q, ^col) in ^inputs)
+          |> IO.inspect(label: "*** LOAD ROWS QUERY ***")
           |> repo.all(repo_opts)
       end
     end
@@ -367,6 +368,7 @@ if Code.ensure_loaded?(Ecto) do
         from(input in subquery(inputs_query), as: :input)
         |> join(:inner_lateral, q in subquery(inner_query))
         |> select([_input, q], q)
+        |> IO.inspect(label: "*** LOAD ROWS LATERAL QUERY ***")
         |> repo.all(repo_opts)
 
       case query.preloads do
@@ -712,6 +714,7 @@ if Code.ensure_loaded?(Ecto) do
             where: field(x, ^pk) in ^Enum.map(structs, &Map.get(&1, pk)),
             select: {field(x, ^pk), y}
           )
+          |> IO.inspect(label: "*** PRELOAD QUERY ***")
           |> repo.all(repo_opts)
 
         results =
