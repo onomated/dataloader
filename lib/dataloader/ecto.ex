@@ -325,6 +325,7 @@ if Code.ensure_loaded?(Ecto) do
             repo_opts :: repo_opts
           ) :: [any]
     def run_batch(repo, queryable, query, col, inputs, repo_opts) do
+      IO.puts("*** IN RUN BATCH ***")
       results = load_rows(col, inputs, queryable, query, repo, repo_opts)
       grouped_results = group_results(results, col)
 
@@ -336,7 +337,7 @@ if Code.ensure_loaded?(Ecto) do
     end
 
     defp load_rows(col, inputs, queryable, query, repo, repo_opts) do
-      pk = queryable.__schema__(:primary_key)
+      pk = queryable.__schema__(:primary_key) |> IO.inspect(label: "*** LOAD ROWS PK")
 
       case query do
         %Ecto.Query{limit: limit, offset: offset}
@@ -346,7 +347,7 @@ if Code.ensure_loaded?(Ecto) do
         _ ->
           query
           |> where([q], field(q, ^col) in ^inputs)
-          |> IO.inspect(label: "*** LOAD ROWS QUERY ***")
+          |> IO.inspect(label: "*** LOAD ROWS QUERY")
           |> repo.all(repo_opts)
       end
     end
@@ -368,7 +369,7 @@ if Code.ensure_loaded?(Ecto) do
         from(input in subquery(inputs_query), as: :input)
         |> join(:inner_lateral, q in subquery(inner_query))
         |> select([_input, q], q)
-        |> IO.inspect(label: "*** LOAD ROWS LATERAL QUERY ***")
+        |> IO.inspect(label: "*** LOAD ROWS LATERAL QUERY")
         |> repo.all(repo_opts)
 
       case query.preloads do
@@ -387,19 +388,22 @@ if Code.ensure_loaded?(Ecto) do
     end
 
     defp query(schema, _) do
+      IO.puts("*** IN BLAND QUERY")
       schema
     end
 
     defimpl Dataloader.Source do
       def run(source) do
-        results = Dataloader.async_safely(__MODULE__, :run_batches, [source])
+        IO.puts("*** IN SOURCE RUN")
+        results = Dataloader.async_safely(__MODULE__, :run_batches, [source]) |> IO.inspect(label: "*** RUN RESULTS UNMERGED")
 
         results =
           Map.merge(source.results, results, fn _, {:ok, v1}, {:ok, v2} ->
             {:ok, Map.merge(v1, v2)}
           end)
+          |> IO.inspect(label: "*** RUN RESULTS MERGED")
 
-        %{source | results: results, batches: %{}}
+        %{source | results: results, batches: %{}} |> IO.inspect(label: "*** UPDATED SOURCE")
       end
 
       def fetch(source, batch_key, item) do
@@ -427,7 +431,7 @@ if Code.ensure_loaded?(Ecto) do
       end
 
       def put(source, _batch, _item, %Ecto.Association.NotLoaded{}) do
-        source
+        source |> IO.inspect(label: "*** PUT SOURCE ECTO ASSOC NOT LOADED")
       end
 
       def put(source, batch, item, result) do
@@ -442,7 +446,7 @@ if Code.ensure_loaded?(Ecto) do
             fn {:ok, map} -> {:ok, Map.put(map, item_key, result)} end
           )
 
-        %{source | results: results}
+        %{source | results: results} |> IO.inspect(label: "*** PUT SOURCE")
       end
 
       def load(source, batch, item) do
@@ -450,15 +454,16 @@ if Code.ensure_loaded?(Ecto) do
           batch
           |> normalize_key(source.default_params)
           |> get_keys(item)
+          |> IO.inspect(label: "*** LOAD SOURCE META")
 
         if fetched?(source.results, batch_key, item_key) do
-          source
+          source |> IO.inspect(label: "*** LOAD SOURCE FETCHED")
         else
           entry = {item_key, item}
 
           update_in(source.batches, fn batches ->
             Map.update(batches, batch_key, MapSet.new([entry]), &MapSet.put(&1, entry))
-          end)
+          end) |> IO.inspect(label: "*** LOAD SOURCE NOT FETCHED")
         end
       end
 
@@ -616,7 +621,7 @@ if Code.ensure_loaded?(Ecto) do
               batch_result = run_batch(batch, source)
               emit_stop_event(id, start_time_mono, batch)
 
-              batch_result
+              batch_result |> IO.inspect(label: "*** BATCH RESULT")
             end,
             options
           )
@@ -629,15 +634,17 @@ if Code.ensure_loaded?(Ecto) do
         |> Enum.map(fn {key, _set} -> key end)
         |> Enum.zip(results)
         |> Map.new()
+        |> IO.inspect(label: "*** BATCHES WITH RESULTS")
       end
 
       defp run_batch(
              {{:queryable, pid, queryable, cardinality, col, opts} = key, entries},
              source
            ) do
+            IO.puts("*** INNTERNAL RUN BATCH SOURCE: #{inspect(source)}")
         inputs = Enum.map(entries, &elem(&1, 0))
 
-        query = source.query.(queryable, opts)
+        query = source.query.(queryable, opts) |> IO.inspect(label: "*** QUERY")
 
         repo_opts = Keyword.put(source.repo_opts, :caller, pid)
 
@@ -645,10 +652,10 @@ if Code.ensure_loaded?(Ecto) do
 
         coerced_inputs =
           if type = queryable.__schema__(:type, col) do
-            IO.inspect(entries, label: "**** ENTRIES *****")
-            IO.inspect(key, label: "**** KEY *****")
-            IO.inspect(type, label: "**** TYPE *****")
-            IO.inspect(inputs, label: "**** INPUTS *****")
+            IO.inspect(entries, label: "*** ENTRIES")
+            IO.inspect(key, label: "*** KEY")
+            IO.inspect(type, label: "*** TYPE")
+            IO.inspect(inputs, label: "*** INPUTS")
             for input <- inputs do
               {:ok, input} = Ecto.Type.cast(type, input)
               input
